@@ -1,9 +1,13 @@
-"""This module contains the class `PromptFactory`, which allows you to
-create a prompt that combines a user prompt with some instructions for
-the LLM.
+"""This module contains classes for easily creating prompts.
+`PromptFactory` allows you to create individual prompts that
+combines a user prompt with some instructions for the LLM,
+while `PromptCollector` uses `PromptFactory` to mass produce
+prompts.
 """
 
-from typing import List, Optional, TypeVar
+import pandas as pd
+
+from typing import Dict, List, Optional, TypeVar, Union
 
 char = TypeVar("char", bound=str)
 
@@ -134,3 +138,87 @@ class PromptFactory:
         if instructions:
             prompt.append(instructions)
             prompt.append("\n")
+
+
+class PromptCollector:
+    """Produce a collection of prompts.
+
+    Attributes:
+        role (str): A string informing the LLM of its role/persona. This
+            will appear in the output prompt of `make_prompt` when using
+            the `r` setting.
+        para_sep (char): This character can be used as a paragraph
+            separator to separate the user prompt from system
+            instructions. This will occur when using the `p` setting in
+            `make_prompt`.
+        char_sep (char): This character can be used to separate each
+            character in a user prompt so that the LLM can distinguish
+            between system instructions and the user prompt. This will
+            occur when using the `c` setting in `make_prompt`.
+    """
+    def __init__(
+        self,
+        role: Optional[str] = "",
+        para_sep: Optional[char] = "-",
+        char_sep: Optional[char] = "+",
+    ):
+        self.pf = PromptFactory(role, para_sep, char_sep)
+        self._prompts = []
+        self._ingredients = []
+
+    def collect(
+        self,
+        user_prompts: List[str],
+        instructions: List[str],
+        settings_arr: List[str],
+    ):
+        """Make a collection of prompts based on given inputs.
+
+        After providing user prompts, instructions for the LLM, and some
+        settings, this method will take a Cartesian product of these to
+        produce a collection of prompts for each possible combination.
+        To access the results, call `get_prompts` for the produced prompts,
+        or `get_ingredients` for the corresponding combinations that
+        produced each prompt.
+
+        Args:
+            user_prompt (List[str]): The inputs from the user
+            instructions (List[str]): Instructions for the LLM to follow, i.e.
+                system prompts
+            settings (List[str]): A list of strings of characters that control
+                the final prompt:
+                    - "c": Separate each character in the user prompt with
+                        `self.char_sep`
+                    - "f": Put the user prompt before the provided instructions.
+                        Without this, the user prompt will instead appear after
+                        the provided instructions.
+                    - "p": Print a line of `self.para_sep` characters before and
+                        after the user prompt to separate it from the system
+                        instructions
+                    - "r": Introduce the role of the chatbot, using `self.role`
+        """
+        for upid, user_prompt in enumerate(user_prompts):
+            for iid, instruction in enumerate(instructions):
+                for settings in settings_arr:
+                    self._prompts.append(
+                        self.pf.make_prompt(
+                            user_prompt, instruction, settings
+                        )
+                    )
+                    self._ingredients.append((upid, iid, settings))
+
+    def get_prompts(self):
+        """Return all prompts collected`"""
+        return self._prompts
+
+    def get_ingredients(self):
+        """Return all ingredients for each prompt collected"""
+        return self._ingredients
+
+    def generate_df(self):
+        """Convert collected prompts and ingredients to a pandas df"""
+        data = []
+        for (user_prompt, instruction, settings), prompt in zip(self._ingredients, self._prompts):
+            data.append((user_prompt, instruction, settings, prompt))
+        df = pd.DataFrame(data, columns=["user_prompt", "instruction", "settings", "prompt"])
+        return df
