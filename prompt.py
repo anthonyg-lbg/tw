@@ -207,15 +207,15 @@ class PromptCollector:
                     )
                     self._ingredients.append((upid, iid, settings))
 
-    def get_prompts(self):
+    def get_prompts(self) -> List[str]:
         """Return all prompts collected`"""
         return self._prompts
 
-    def get_ingredients(self):
+    def get_ingredients(self) -> List[str]:
         """Return all ingredients for each prompt collected"""
         return self._ingredients
 
-    def generate_df(self):
+    def generate_df(self) -> pd.DataFrame:
         """Convert collected prompts and ingredients to a pandas df"""
         data = []
         for (user_prompt, instruction, settings), prompt in zip(self._ingredients, self._prompts):
